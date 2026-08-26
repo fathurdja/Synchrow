@@ -10,6 +10,7 @@ export default function EmployeesPage() {
   const [users, setUsers] = useState<any[]>([]);
   const [roles, setRoles] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     const fetchUsers = async () => {
@@ -17,8 +18,10 @@ export default function EmployeesPage() {
         const response = await api.get('/users');
         setUsers(response.data.users);
         setRoles(response.data.available_roles);
-      } catch (err) {
-        console.error("Failed to fetch users");
+      } catch (err: any) {
+        const errMsg = err.response?.data?.error || err.message || "Failed to fetch users";
+        setError(errMsg);
+        console.warn("User fetch error:", errMsg);
       } finally {
         setIsLoading(false);
       }
@@ -93,6 +96,14 @@ export default function EmployeesPage() {
               {isLoading ? (
                 <tr>
                   <td colSpan={5} className="py-8 text-center text-sm text-slate-500">Loading employees...</td>
+                </tr>
+              ) : error ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-sm text-rose-500 font-medium">Error: {error}</td>
+                </tr>
+              ) : users.length === 0 ? (
+                <tr>
+                  <td colSpan={5} className="py-8 text-center text-sm text-slate-500">No employees found.</td>
                 </tr>
               ) : users.map((user) => (
                 <tr key={user.id} className="hover:bg-slate-50/50 transition-colors">

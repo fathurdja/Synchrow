@@ -9,10 +9,12 @@ import { useAuthStore } from "@/store/useAuthStore";
 
 const navItems = [
   { href: "/dashboard", label: "Dashboard", icon: "dashboard" },
-  { href: "/attendance", label: "Attendance", icon: "calendar_today" },
+  { href: "/attendance", label: "My Attendance", icon: "calendar_today" },
+  { href: "/attendance-log", label: "Employee Logs", icon: "history" },
   { href: "/leave", label: "Leave", icon: "event_busy" },
   { href: "/payroll", label: "Payroll", icon: "payments" },
   { href: "/employees", label: "Employees", icon: "groups" },
+  { href: "/profile", label: "Profile", icon: "person" },
   { href: "/settings", label: "Settings", icon: "settings" },
 ];
 
@@ -47,6 +49,9 @@ export default function DashboardLayout({ children }: { children: ReactNode }) {
           {navItems.map((item) => {
             // Hide payroll and employees if not finance, hr_admin, or super_admin
             if (item.href === '/payroll' && !hasRole(['finance', 'super_admin'])) {
+              return null;
+            }
+            if (item.href === '/attendance-log' && !hasRole(['hr_admin', 'super_admin', 'dept_manager'])) {
               return null;
             }
             if (item.href === '/employees' && !hasRole(['hr_admin', 'super_admin', 'dept_manager'])) {

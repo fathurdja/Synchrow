@@ -1,96 +1,268 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
 import { Button } from "@/components/ui/button";
+import { useAuthStore } from "@/store/useAuthStore";
+import api from "@/lib/axios";
+import * as faceapi from 'face-api.js';
+import Image from "next/image";
 
 export default function AttendancePage() {
+  const { user } = useAuthStore();
+  
+  const [attendances, setAttendances] = useState<any[]>([]);
+  const [isLoadingHistory, setIsLoadingHistory] = useState(true);
+  
+  // Camera & Face states
+  const [isModelsLoaded, setIsModelsLoaded] = useState(false);
+  const [isScanning, setIsScanning] = useState(false);
+  const [statusMsg, setStatusMsg] = useState("Loading AI Models...");
+  const [matchResult, setMatchResult] = useState<'match' | 'no-match' | null>(null);
+  const [isProcessing, setIsProcessing] = useState(false);
+  
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const streamRef = useRef<MediaStream | null>(null);
+
+  useEffect(() => {
+    fetchHistory();
+    loadModels();
+  }, []);
+
+  const fetchHistory = async () => {
+    try {
+      const response = await api.get('/attendances');
+      setAttendances(response.data);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingHistory(false);
+    }
+  };
+
+  const loadModels = async () => {
+    try {
+      const MODEL_URL = 'https://raw.githubusercontent.com/justadudewhohacks/face-api.js/master/weights';
+      await Promise.all([
+        faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+        faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+        faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL)
+      ]);
+      setIsModelsLoaded(true);
+      setStatusMsg("Models loaded. Ready.");
+    } catch (e) {
+      console.error("Failed to load models", e);
+      setStatusMsg("Error loading AI models.");
+    }
+  };
+
+  const startScanning = async () => {
+    if (!user?.face_descriptor) {
+      alert("You have not registered your face data yet. Please go to Profile to set it up.");
+      return;
+    }
+    try {
+      setIsScanning(true);
+      setMatchResult(null);
+      setStatusMsg("Starting camera...");
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+      streamRef.current = stream;
+      setStatusMsg("Please look at the camera...");
+      
+      // Give time for video to start playing, then attempt verify
+      setTimeout(verifyFace, 1500);
+      
+    } catch (err) {
+      console.error(err);
+      setStatusMsg("Failed to access camera.");
+      setIsScanning(false);
+    }
+  };
+
+  const stopCamera = () => {
+    if (streamRef.current) {
+      streamRef.current.getTracks().forEach(track => track.stop());
+      streamRef.current = null;
+    }
+    setIsScanning(false);
+  };
+
+  const verifyFace = async () => {
+    if (!videoRef.current || !isModelsLoaded || !user?.face_descriptor) return;
+    
+    setStatusMsg("Verifying identity...");
+    try {
+      const detection = await faceapi.detectSingleFace(
+        videoRef.current, 
+        new faceapi.TinyFaceDetectorOptions()
+      ).withFaceLandmarks().withFaceDescriptor();
+
+      if (!detection) {
+        setStatusMsg("Face not detected. Retrying...");
+        setTimeout(verifyFace, 1000);
+        return;
+      }
+
+      // We have a live descriptor, compare with stored
+      const storedDescriptor = new Float32Array(JSON.parse(user.face_descriptor));
+      
+      // Calculate euclidean distance
+      const distance = faceapi.euclideanDistance(detection.descriptor, storedDescriptor);
+      // threshold usually 0.6 for match
+      if (distance < 0.55) {
+        setMatchResult('match');
+        setStatusMsg("Identity Verified! You may now check in/out.");
+      } else {
+        setMatchResult('no-match');
+        setStatusMsg("Identity verification failed. Face does not match.");
+      }
+      
+    } catch (err) {
+      console.error(err);
+      setStatusMsg("Verification error.");
+    }
+  };
+
+  const handleAction = async (type: 'in' | 'out') => {
+    setIsProcessing(true);
+    try {
+      const endpoint = type === 'in' ? '/attendances/check-in' : '/attendances/check-out';
+      await api.post(endpoint, { location: 'Office' });
+      alert(`Successfully checked ${type}!`);
+      stopCamera();
+      fetchHistory();
+    } catch (err: any) {
+      alert(err.response?.data?.error || `Failed to check ${type}.`);
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   return (
-    <div className="max-w-6xl mx-auto h-[calc(100vh-64px-64px)] flex flex-col lg:flex-row gap-6">
-      {/* Left Side: Camera & Actions */}
-      <div className="flex-1 flex flex-col gap-6 min-h-0">
-        {/* Camera Window */}
-        <div className="relative flex-1 bg-slate-900 rounded-xl overflow-hidden shadow-md border border-slate-800 group min-h-[300px]">
-          {/* Placeholder for video feed */}
-          <div
-            className="absolute inset-0 bg-cover bg-center opacity-50"
-            style={{ backgroundImage: "url('https://lh3.googleusercontent.com/aida-public/AB6AXuBznrQJhrVGBFMPd_jSphTXku5TLmjiqpzD1C-7GExJTxSRKshNH9DSbSc4ByUqnZaaCm3ltsmVEiCBKkvlKjrHWXs1rUsAu1Fb9aAyhRMlpLL3q75ESaMe7DfgHH3QpYJnSQQ6xzMNX8PwOdZuAc-iQl_J4pIlfT_dtGTggRlTu1u_tYQlnCTSkeZOpyuEOQqUAL7zxtbn2HxcpRTWcBRv1upfPukit6WL-sV_3lYopbMt4p-x3vJ0OA')" }}
-          ></div>
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl md:text-[30px] font-semibold text-slate-900 tracking-tight">Attendance</h2>
+        <p className="text-sm text-slate-500 mt-1">Live Face Recognition Check-In / Check-Out</p>
+      </div>
 
-          {/* Scanning Overlay */}
-          <div className="absolute inset-0 pointer-events-none">
-            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[60%] h-[70%] border-2 border-dashed border-indigo-500/60 rounded-[20px] shadow-[0_0_0_9999px_rgba(15,23,42,0.4)]">
-              <div className="absolute -top-0.5 -left-0.5 w-[30px] h-[30px] border-indigo-500 border-t-4 border-l-4 rounded-tl-[20px]"></div>
-              <div className="absolute -top-0.5 -right-0.5 w-[30px] h-[30px] border-indigo-500 border-t-4 border-r-4 rounded-tr-[20px]"></div>
-              <div className="absolute -bottom-0.5 -left-0.5 w-[30px] h-[30px] border-indigo-500 border-b-4 border-l-4 rounded-bl-[20px]"></div>
-              <div className="absolute -bottom-0.5 -right-0.5 w-[30px] h-[30px] border-indigo-500 border-b-4 border-r-4 rounded-br-[20px]"></div>
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left Column: Camera and Actions */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="bg-white rounded-xl border border-slate-200 p-6 shadow-sm flex flex-col items-center">
+            
+            <div className="w-full aspect-video bg-black rounded-xl overflow-hidden relative shadow-inner mb-6 flex items-center justify-center">
+              {isScanning ? (
+                <video 
+                  ref={videoRef} 
+                  autoPlay 
+                  muted 
+                  playsInline 
+                  className={`w-full h-full object-cover transform -scale-x-100 ${matchResult === 'match' ? 'border-4 border-emerald-500' : matchResult === 'no-match' ? 'border-4 border-rose-500' : ''}`}
+                />
+              ) : (
+                <div className="text-center text-slate-500">
+                  <span className="material-symbols-outlined text-4xl mb-2 opacity-50">flip_camera_ios</span>
+                  <p className="text-sm">Camera Offline</p>
+                </div>
+              )}
+
+              {/* Overlay Status */}
+              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 w-[90%] text-center">
+                <span className={`inline-block px-3 py-1 bg-black/60 backdrop-blur-md text-white text-xs font-medium rounded-full ${matchResult === 'match' ? 'bg-emerald-500/80 text-white' : matchResult === 'no-match' ? 'bg-rose-500/80 text-white' : ''}`}>
+                  {statusMsg}
+                </span>
+              </div>
             </div>
-            <div className="absolute w-full h-1 bg-gradient-to-r from-transparent via-indigo-500 to-transparent opacity-80 animate-[scan_2s_linear_infinite]"></div>
-          </div>
 
-          {/* Status Indicator */}
-          <div className="absolute top-5 left-1/2 -translate-x-1/2 bg-slate-900/80 backdrop-blur-md px-5 py-2.5 rounded-full border border-slate-700/50 flex items-center gap-3">
-            <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
-            <span className="text-sm font-medium text-white">Detecting Face...</span>
-          </div>
+            <div className="w-full flex flex-col gap-3">
+              {!isScanning ? (
+                <Button onClick={startScanning} disabled={!isModelsLoaded} className="w-full bg-brand-primary hover:bg-brand-secondary text-white h-12">
+                  <span className="material-symbols-outlined mr-2">face_recognition</span>
+                  Start Verification
+                </Button>
+              ) : matchResult === 'match' ? (
+                <div className="flex gap-2">
+                  <Button disabled={isProcessing} onClick={() => handleAction('in')} className="flex-1 bg-emerald-600 hover:bg-emerald-700 h-12">
+                    Check In
+                  </Button>
+                  <Button disabled={isProcessing} onClick={() => handleAction('out')} className="flex-1 bg-amber-600 hover:bg-amber-700 h-12">
+                    Check Out
+                  </Button>
+                </div>
+              ) : (
+                <Button onClick={stopCamera} variant="outline" className="w-full h-12">
+                  Cancel
+                </Button>
+              )}
+            </div>
 
-          {/* Camera Controls */}
-          <div className="absolute bottom-5 left-5 right-5 flex justify-between items-center opacity-0 group-hover:opacity-100 transition-opacity duration-300">
-            <Button size="icon" variant="ghost" className="w-10 h-10 rounded-full bg-slate-800/70 backdrop-blur text-white hover:bg-slate-700 hover:text-white border border-slate-600/50">
-              <span className="material-symbols-outlined">cameraswitch</span>
-            </Button>
-            <Button size="icon" variant="ghost" className="w-10 h-10 rounded-full bg-slate-800/70 backdrop-blur text-white hover:bg-slate-700 hover:text-white border border-slate-600/50">
-              <span className="material-symbols-outlined">settings</span>
-            </Button>
+            {!user?.face_descriptor && (
+              <div className="mt-4 w-full p-3 bg-rose-50 border border-rose-200 rounded-lg text-rose-600 text-xs text-center font-medium">
+                Please register your face in the Profile page first before you can check in.
+              </div>
+            )}
           </div>
         </div>
 
-        {/* Action Bar */}
-        <div className="bg-white rounded-xl p-5 border border-slate-200 shadow-sm flex flex-col sm:flex-row gap-4 items-center justify-between shrink-0">
-          <div className="flex items-center gap-4 w-full sm:w-auto">
-            <div className="w-11 h-11 rounded-full bg-slate-100 flex items-center justify-center border border-slate-200 shrink-0">
-              <span className="material-symbols-outlined text-slate-400 text-xl">person</span>
+        {/* Right Column: History */}
+        <div className="lg:col-span-2">
+          <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full">
+            <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-slate-50">
+              <h3 className="font-semibold text-slate-800">My Attendance History</h3>
             </div>
-            <div>
-              <p className="text-sm font-semibold text-slate-900">Awaiting Recognition</p>
-              <p className="text-xs text-slate-400">Please align face within frame</p>
+            
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse">
+                <thead>
+                  <tr className="bg-white border-b border-slate-200">
+                    <th className="py-3 px-6 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Date</th>
+                    <th className="py-3 px-6 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Check In</th>
+                    <th className="py-3 px-6 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Check Out</th>
+                    <th className="py-3 px-6 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {isLoadingHistory ? (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-sm text-slate-500">Loading history...</td>
+                    </tr>
+                  ) : attendances.length === 0 ? (
+                    <tr>
+                      <td colSpan={4} className="py-8 text-center text-sm text-slate-500">No records found.</td>
+                    </tr>
+                  ) : (
+                    attendances.map((att: any) => (
+                      <tr key={att.id} className="hover:bg-slate-50/50">
+                        <td className="px-6 py-4 text-sm font-medium text-slate-700">
+                          {new Date(att.date).toLocaleDateString()}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {att.check_in || '-'}
+                        </td>
+                        <td className="px-6 py-4 text-sm text-slate-600">
+                          {att.check_out || '-'}
+                        </td>
+                        <td className="px-6 py-4">
+                          <span className={`inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
+                            att.status === 'Present' ? 'bg-emerald-50 text-emerald-600 border border-emerald-200' :
+                            att.status === 'Late' ? 'bg-amber-50 text-amber-600 border border-amber-200' :
+                            'bg-slate-50 text-slate-500 border border-slate-200'
+                          }`}>
+                            {att.status}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  )}
+                </tbody>
+              </table>
             </div>
-          </div>
-          <div className="flex gap-3 w-full sm:w-auto">
-            <Button variant="outline" className="flex-1 sm:flex-none" disabled>Check Out</Button>
-            <Button className="flex-1 sm:flex-none bg-indigo-600 hover:bg-indigo-700 shadow-sm" disabled>Check In</Button>
           </div>
         </div>
       </div>
-
-      {/* Right Side: Today's Log */}
-      <div className="w-full lg:w-80 flex flex-col gap-6 shrink-0">
-        {/* Time Card */}
-        <div className="bg-indigo-600 rounded-xl p-6 text-white shadow-lg shadow-indigo-600/20 shrink-0">
-          <p className="text-[11px] font-semibold text-indigo-200 uppercase tracking-wider mb-1">Current Time</p>
-          <h2 className="text-5xl font-bold tabular-nums leading-none">08:42<span className="text-2xl text-indigo-300 ml-1 font-semibold">AM</span></h2>
-          <p className="text-sm text-indigo-100 mt-3">Monday, October 24, 2023</p>
-        </div>
-
-        {/* Log Summary */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm flex-1 overflow-hidden flex flex-col">
-          <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex justify-between items-center">
-            <h3 className="text-sm font-semibold text-slate-900">Today&apos;s Log</h3>
-            <span className="text-[11px] font-medium text-slate-400">Headquarters HQ</span>
-          </div>
-          <div className="p-4 flex-1 overflow-y-auto">
-            <div className="h-full flex flex-col items-center justify-center text-center p-6 text-slate-400">
-              <span className="material-symbols-outlined mb-2 text-4xl opacity-40">history</span>
-              <p className="text-sm">No attendance records yet for today.</p>
-              <p className="text-[11px] mt-1 text-slate-300">Scan face to check in.</p>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <style dangerouslySetInnerHTML={{__html: `
-        @keyframes scan {
-          0% { top: 0; }
-          50% { top: 100%; }
-          100% { top: 0; }
-        }
-      `}} />
     </div>
   );
 }

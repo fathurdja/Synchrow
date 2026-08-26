@@ -8,6 +8,13 @@ interface User {
   email: string;
   avatar?: string;
   department_id?: number;
+  position?: string;
+  employment_status?: string;
+  nip?: string;
+  join_date?: string;
+  face_descriptor?: string;
+  face_updates_count?: number;
+  face_last_updated_month?: string;
 }
 
 interface AuthState {

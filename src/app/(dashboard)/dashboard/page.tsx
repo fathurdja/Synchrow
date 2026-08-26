@@ -1,64 +1,99 @@
+"use client";
+
 import { Button } from "@/components/ui/button";
+import { useState, useEffect } from "react";
+import api from "@/lib/axios";
+import { useAuthStore } from "@/store/useAuthStore";
 
 export default function DashboardPage() {
+  const { user, hasRole } = useAuthStore();
+  const [stats, setStats] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    const fetchStats = async () => {
+      try {
+        const response = await api.get('/dashboard/stats');
+        setStats(response.data);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    fetchStats();
+  }, []);
+
+  const isManager = hasRole(['super_admin', 'hr_admin', 'dept_manager']);
+
+  if (isLoading) return <div className="p-8 text-slate-500">Loading dashboard...</div>;
+
   return (
     <div className="max-w-[1440px] mx-auto space-y-8">
       {/* Page Header */}
       <div className="flex flex-col sm:flex-row sm:items-end justify-between gap-4">
         <div>
-          <h2 className="text-2xl md:text-[30px] font-semibold text-slate-900 tracking-tight leading-tight">Dashboard</h2>
+          <h2 className="text-2xl md:text-[30px] font-semibold text-slate-900 tracking-tight leading-tight">Welcome, {user?.name}</h2>
           <p className="text-sm text-slate-500 mt-1">Today&apos;s overview and actionable items.</p>
         </div>
-        <p className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded uppercase tracking-wider self-start sm:self-auto">Tuesday, Oct 24, 2023</p>
+        <p className="text-xs font-semibold text-slate-500 bg-slate-100 px-3 py-1.5 rounded uppercase tracking-wider self-start sm:self-auto">
+          {new Date().toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'short', day: 'numeric' })}
+        </p>
       </div>
 
       {/* Summary Cards Grid */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
-        {/* Total Employees */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
+        {isManager ? (
+          <>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Employees</p>
+                <span className="material-symbols-outlined text-brand-primary text-xl">group</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">{stats?.admin?.total_employees || 0}</p>
+              </div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Today Attendance</p>
+                <span className="material-symbols-outlined text-emerald-500 text-xl">how_to_reg</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">{stats?.admin?.today_attendance || 0}</p>
+              </div>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Present (Month)</p>
+                <span className="material-symbols-outlined text-emerald-500 text-xl">check_circle</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">{stats?.personal?.present_this_month || 0}</p>
+                <span className="text-sm text-slate-400">/ {stats?.personal?.total_working_days || 22}</span>
+              </div>
+            </div>
+            <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between shadow-sm">
+              <div className="flex items-center justify-between mb-3">
+                <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Late (Month)</p>
+                <span className="material-symbols-outlined text-amber-500 text-xl">schedule</span>
+              </div>
+              <div className="flex items-baseline gap-2">
+                <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">{stats?.personal?.late_this_month || 0}</p>
+              </div>
+            </div>
+          </>
+        )}
+        <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between shadow-sm">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Total Employees</p>
-            <span className="material-symbols-outlined text-slate-300 text-xl">group</span>
+            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Active Leaves</p>
+            <span className="material-symbols-outlined text-brand-secondary text-xl">event_available</span>
           </div>
           <div className="flex items-baseline gap-2">
-            <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">1,248</p>
-            <span className="text-xs font-semibold text-emerald-600 flex items-center">
-              <span className="material-symbols-outlined text-[14px]">arrow_upward</span> 2.4%
-            </span>
-          </div>
-        </div>
-        {/* On-time Today */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">On-time Today</p>
-            <span className="material-symbols-outlined text-emerald-500 text-xl">check_circle</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">1,102</p>
-            <span className="text-sm text-slate-400">92%</span>
-          </div>
-        </div>
-        {/* Late */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Late Today</p>
-            <span className="material-symbols-outlined text-amber-500 text-xl">schedule</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">45</p>
-            <span className="text-xs font-semibold text-rose-500 flex items-center">
-              <span className="material-symbols-outlined text-[14px]">arrow_upward</span> 5
-            </span>
-          </div>
-        </div>
-        {/* On Leave */}
-        <div className="bg-white border border-slate-200 rounded-xl p-4 md:p-6 flex flex-col justify-between hover:shadow-md transition-shadow">
-          <div className="flex items-center justify-between mb-3">
-            <p className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">On Leave</p>
-            <span className="material-symbols-outlined text-slate-300 text-xl">event_available</span>
-          </div>
-          <div className="flex items-baseline gap-2">
-            <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">101</p>
+            <p className="text-2xl md:text-3xl font-bold text-slate-900 tabular-nums">{stats?.personal?.active_leaves || 0}</p>
           </div>
         </div>
       </div>
@@ -95,83 +130,60 @@ export default function DashboardPage() {
         {/* Recent Activity */}
         <div className="bg-white border border-slate-200 rounded-xl p-6 flex flex-col shadow-sm">
           <div className="flex justify-between items-center mb-5 pb-3 border-b border-slate-100">
-            <h3 className="text-lg font-semibold text-slate-900">Recent Activity</h3>
-            <button className="text-indigo-600 text-xs font-semibold hover:underline">View All</button>
+            <h3 className="text-lg font-semibold text-slate-900">Recent Attendance</h3>
           </div>
           <div className="flex-1 overflow-y-auto space-y-4 pr-1">
-            {[
-              { name: "Sarah Jenkins", action: "checked in", time: "08:55 AM • Head Office", icon: "login", color: "emerald" },
-              { name: "Michael Chen", action: "late check-in", time: "09:15 AM • Branch A", icon: "schedule", color: "amber" },
-              { name: "David Ross", action: "checked in", time: "08:42 AM • Head Office", icon: "login", color: "emerald" },
-              { name: "Elena Rostova", action: "checked out", time: "Yesterday 18:05 PM", icon: "logout", color: "slate" },
-            ].map((item, i) => (
-              <div key={i} className="flex gap-3 items-start">
-                <div className={`w-8 h-8 rounded-full bg-${item.color}-50 text-${item.color}-600 flex items-center justify-center shrink-0`}>
-                  <span className="material-symbols-outlined text-[16px]">{item.icon}</span>
+            {stats?.personal?.recent_activity?.length > 0 ? (
+              stats.personal.recent_activity.map((item: any, i: number) => (
+                <div key={i} className="flex gap-3 items-start">
+                  <div className={`w-8 h-8 rounded-full ${item.status === 'Present' ? 'bg-emerald-50 text-emerald-600' : 'bg-amber-50 text-amber-600'} flex items-center justify-center shrink-0`}>
+                    <span className="material-symbols-outlined text-[16px]">
+                      {item.status === 'Present' ? 'login' : 'schedule'}
+                    </span>
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm text-slate-700">
+                      <span className="font-semibold text-slate-900">Checked in</span>
+                    </p>
+                    <p className="text-[11px] text-slate-400 mt-0.5">
+                      {new Date(item.date).toLocaleDateString()} • {item.check_in || '-'}
+                    </p>
+                  </div>
                 </div>
-                <div className="min-w-0">
-                  <p className="text-sm text-slate-700"><span className="font-semibold text-slate-900">{item.name}</span> {item.action}</p>
-                  <p className="text-[11px] text-slate-400 mt-0.5">{item.time}</p>
-                </div>
-              </div>
-            ))}
+              ))
+            ) : (
+              <p className="text-sm text-slate-500 italic">No recent attendance found.</p>
+            )}
           </div>
         </div>
       </div>
 
-      {/* Pending Leave Requests Table */}
-      <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm">
-        <div className="p-6 border-b border-slate-200 flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-slate-900">Pending Leave Requests</h3>
-          <span className="bg-indigo-100 text-indigo-700 text-xs font-semibold px-2.5 py-1 rounded-full">3 Pending</span>
+      {/* Recent Leave Status (Employee view) */}
+      {!isManager && stats?.personal?.recent_leave_status && (
+        <div className="bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm p-6 flex flex-col gap-3">
+          <div className="flex items-center gap-2 mb-2">
+            <span className="material-symbols-outlined text-brand-primary">notifications_active</span>
+            <h3 className="text-lg font-semibold text-slate-900">Leave Request Status</h3>
+          </div>
+          <div className="bg-slate-50 border border-slate-100 rounded-lg p-4 flex justify-between items-center">
+            <div>
+              <p className="font-medium text-slate-800">{stats.personal.recent_leave_status.type}</p>
+              <p className="text-sm text-slate-500 mt-1">
+                {new Date(stats.personal.recent_leave_status.start_date).toLocaleDateString()} - {new Date(stats.personal.recent_leave_status.end_date).toLocaleDateString()}
+              </p>
+            </div>
+            <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${
+              stats.personal.recent_leave_status.status === 'Approved' ? 'bg-emerald-100 text-emerald-700' :
+              stats.personal.recent_leave_status.status === 'Rejected' ? 'bg-rose-100 text-rose-700' :
+              'bg-amber-100 text-amber-700'
+            }`}>
+              {stats.personal.recent_leave_status.status}
+            </span>
+          </div>
         </div>
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse min-w-[600px]">
-            <thead>
-              <tr className="bg-slate-50 border-b border-slate-200">
-                <th className="px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Employee</th>
-                <th className="px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Type</th>
-                <th className="px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Duration</th>
-                <th className="px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Status</th>
-                <th className="px-6 py-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider text-right">Actions</th>
-              </tr>
-            </thead>
-            <tbody>
-              {[
-                { name: "Jessica Alba", role: "UX Designer", type: "Annual Leave", duration: "Oct 26 - Oct 28 (3 days)", avatar: "https://lh3.googleusercontent.com/aida-public/AB6AXuCm7M5XYMWpKWnGQZkEmdE3kxlRwYYcq0Aq-DhQTKW9RIHVQxvk-YXc7sfXgTeYDC5-P43DsHUne1Y8Uy_hjwC0r6QucHgI8wPpme21aqHXWPsRu1lAvV1g5RyRoRnGUSP_eNcXRugEenszkjxfKtFpMSXVJPfoDqADtdEKTglPAYrKaveLY89O9V2F9d52i2bCXpb9tpGnvCuUwmiNslDopZ3pmnqO1Ek8qBi7tybqw5PXKFDHn_BHVg" },
-                { name: "Tom Riddle", role: "Backend Dev", type: "Sick Leave", duration: "Oct 24 (1 day)", initials: "TR" },
-              ].map((row, i) => (
-                <tr key={i} className="border-b border-slate-100 hover:bg-slate-50/50 transition-colors">
-                  <td className="px-6 py-4">
-                    <div className="flex items-center gap-3">
-                      {row.avatar ? (
-                        <img className="w-8 h-8 rounded-full object-cover" alt={row.name} src={row.avatar} />
-                      ) : (
-                        <div className="w-8 h-8 rounded-full bg-indigo-100 text-indigo-700 flex items-center justify-center text-xs font-bold">{row.initials}</div>
-                      )}
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{row.name}</p>
-                        <p className="text-xs text-slate-400">{row.role}</p>
-                      </div>
-                    </div>
-                  </td>
-                  <td className="px-6 py-4 text-sm text-slate-600">{row.type}</td>
-                  <td className="px-6 py-4 text-sm text-slate-500">{row.duration}</td>
-                  <td className="px-6 py-4">
-                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-bold bg-amber-50 text-amber-600 border border-amber-200 uppercase tracking-wider">Pending</span>
-                  </td>
-                  <td className="px-6 py-4 text-right">
-                    <div className="flex justify-end gap-2">
-                      <Button variant="outline" size="sm" className="text-emerald-600 border-emerald-200 bg-emerald-50 hover:bg-emerald-100 hover:text-emerald-700 text-xs h-8">Approve</Button>
-                      <Button variant="outline" size="sm" className="text-xs h-8">Reject</Button>
-                    </div>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
+      )}
+
+      {/* Removed the hardcoded table as leaves/page.tsx now handles all leave requests for managers */}
     </div>
   );
 }
