@@ -12,6 +12,7 @@ const navItems = [
   { href: "/attendance", label: "My Attendance", icon: "calendar_today" },
   { href: "/attendance-log", label: "Employee Logs", icon: "history" },
   { href: "/leave", label: "Leave", icon: "event_busy" },
+  { href: "/my-payslips", label: "My Payslips", icon: "receipt_long" },
   { href: "/payroll", label: "Payroll", icon: "payments" },
   { href: "/employees", label: "Employees", icon: "groups" },
   { href: "/profile", label: "Profile", icon: "person" },
