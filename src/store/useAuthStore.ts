@@ -8,6 +8,7 @@ interface User {
   email: string;
   avatar?: string;
   department_id?: number;
+  department?: string;
   position?: string;
   employment_status?: string;
   nip?: string;

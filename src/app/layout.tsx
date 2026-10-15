@@ -1,15 +1,16 @@
 import type { Metadata } from "next";
-import { Inter } from "next/font/google";
+import { Plus_Jakarta_Sans } from "next/font/google";
 import "./globals.css";
 
-const inter = Inter({
+const plusJakarta = Plus_Jakarta_Sans({
   variable: "--font-sans",
   subsets: ["latin"],
+  weight: ["400", "500", "600", "700"],
 });
 
 export const metadata: Metadata = {
-  title: "Synchrow - Enterprise HRIS",
-  description: "Enterprise HRIS with Face Recognition",
+  title: "Synchrow — Enterprise HRIS",
+  description: "Pusat kendali operasional HR: absensi, cuti, payroll, dan karyawan.",
 };
 
 export default function RootLayout({
@@ -18,13 +19,14 @@ export default function RootLayout({
   children: React.ReactNode;
 }>) {
   return (
-    <html lang="en">
+    <html lang="id">
       <head>
-        <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet" />
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap"
+          rel="stylesheet"
+        />
       </head>
-      <body
-        className={`${inter.variable} font-sans antialiased bg-surface dark:bg-surface-container-low`}
-      >
+      <body className={`${plusJakarta.variable} font-sans antialiased`}>
         {children}
       </body>
     </html>
